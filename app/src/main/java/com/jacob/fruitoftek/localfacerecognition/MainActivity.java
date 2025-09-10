@@ -2,7 +2,7 @@ package com.jacob.fruitoftek.localfacerecognition;
 
 import android.Manifest;
 import android.app.Dialog;
-import android.app.Fragment;
+import androidx.fragment.app.Fragment;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -241,7 +241,7 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
             }
         }
 
-        CameraConnectionFragment camera2Fragment =
+        Fragment camera2Fragment =
                 CameraConnectionFragment.newInstance(
                         new CameraConnectionFragment.ConnectionCallback() {
                             @Override
@@ -290,7 +290,7 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                         R.layout.camera_fragment,
                         new Size(640, 480));
 
-        camera2Fragment.setCamera(cameraId);
+        ((CameraConnectionFragment) camera2Fragment).setCamera(cameraId);
         getSupportFragmentManager()
                 .beginTransaction()
                 .replace(R.id.container, camera2Fragment)
