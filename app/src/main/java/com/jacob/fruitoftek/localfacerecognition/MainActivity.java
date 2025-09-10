@@ -33,6 +33,7 @@ import android.widget.Toast;
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -90,19 +91,35 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         handler = new Handler();
 
         //TODO handling permissions
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED || checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    == PackageManager.PERMISSION_DENIED){
+        Intent intent = getIntent();
+        useFacing = intent.getIntExtra(KEY_USE_FACING, CameraCharacteristics.LENS_FACING_BACK);
+
+        //TODO handling permissions and show live camera footage
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                        == PackageManager.PERMISSION_GRANTED) {
+            //TODO show live camera footage
+            setFragment();
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 String[] permission = {Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE};
                 requestPermissions(permission, 121);
             }
         }
-
-        Intent intent = getIntent();
-        useFacing = intent.getIntExtra(KEY_USE_FACING, CameraCharacteristics.LENS_FACING_BACK);
-
-        //TODO show live camera footage
-        setFragment();
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+//            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED || checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+//                    == PackageManager.PERMISSION_DENIED){
+//                String[] permission = {Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE};
+//                requestPermissions(permission, 121);
+//            }
+//        }
+//
+//        Intent intent = getIntent();
+//        useFacing = intent.getIntExtra(KEY_USE_FACING, CameraCharacteristics.LENS_FACING_BACK);
+//
+//        //TODO show live camera footage
+//        setFragment();
 
 
         //TODO initialize the tracker to draw rectangles
@@ -165,13 +182,23 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
 
     }
 
+//    @Override
+//    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+//        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+//        if(requestCode == 121 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+//            setFragment();
+//        }
+//    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if(requestCode == 121 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
-            setFragment();
+            if (requestCode == 121) {
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    setFragment();
+                }
+            }
         }
-    }
 
     //TODO fragment which show live footage from camera
     int previewHeight = 0,previewWidth = 0;
@@ -179,9 +206,33 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         final CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         String cameraId = null;
         try {
-            cameraId = manager.getCameraIdList()[useFacing];
+//            cameraId = manager.getCameraIdList()[useFacing];
+            for (String id : manager.getCameraIdList()) {
+                CameraCharacteristics characteristics = manager.getCameraCharacteristics(id);
+                Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+                if (facing != null && facing == useFacing) {
+                    cameraId = id;
+                    break;
+                }
+            }
         } catch (CameraAccessException e) {
             e.printStackTrace();
+        }
+
+        if (cameraId == null) {
+            try {
+                String[] cameraIds = manager.getCameraIdList();
+                if (cameraIds.length > 0) {
+                    cameraId = cameraIds[0];
+                } else {
+                    Toast.makeText(this, "No camera available", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+                Toast.makeText(this, "Cannot access cameras", Toast.LENGTH_SHORT).show();
+                return;
+            }
         }
 
         Fragment fragment;
