@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 public class MainActivity extends AppCompatActivity implements ImageReader.OnImageAvailableListener{
 
@@ -168,8 +169,7 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         inferenceHandler = new Handler(inferenceThread.getLooper());
     }
 
-    @Override
-    protected void onPause() {
+    private void stopInferenceThread() {
         if (inferenceThread != null) {
             inferenceThread.quitSafely();
             try {
@@ -180,6 +180,11 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
             inferenceThread = null;
             inferenceHandler = null;
         }
+    }
+
+    @Override
+    protected void onPause() {
+        stopInferenceThread();
         super.onPause();
     }
 
@@ -353,6 +358,9 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                                 performFaceDetection();
                             }
                         });
+            } else {
+                image.close();
+                isProcessingFrame = false;
             }
         } catch (final Exception e) {
             Log.d("tryError",e.getMessage()+"abc ");
@@ -398,13 +406,19 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         InputImage image = InputImage.fromBitmap(croppedBitmap,0);
         detector.process(image)
                 .addOnSuccessListener(
+                        new Executor() {
+                            @Override
+                            public void execute(Runnable command) {
+                                inferenceHandler.post(command);
+                            }
+                        },
                         new OnSuccessListener<List<Face>>() {
                             @Override
                             public void onSuccess(List<Face> faces) {
 
-                                for(Face face:faces) {
+                                for (Face face : faces) {
                                     final Rect bounds = face.getBoundingBox();
-                                    performFaceRecognition(face,croppedBitmap);
+                                    performFaceRecognition(face, croppedBitmap);
                                 }
                                 registerFace = false;
                                 tracker.trackResults(mappedRecognitions, 10);
@@ -416,6 +430,12 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                             }
                         })
                 .addOnFailureListener(
+                        new Executor() {
+                            @Override
+                            public void execute(Runnable command) {
+                                inferenceHandler.post(command);
+                            }
+                        },
                         new OnFailureListener() {
                             @Override
                             public void onFailure(@NonNull Exception e) {
@@ -480,18 +500,8 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
 
     @Override
     protected void onDestroy() {
-        if (inferenceThread != null) {
-            inferenceThread.quitSafely();
-            try {
-                inferenceThread.join();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            inferenceThread = null;
-            inferenceHandler = null;
-        }
+        stopInferenceThread();
         super.onDestroy();
-        //detector.close();
     }
 
     //TODO register face dialogue
