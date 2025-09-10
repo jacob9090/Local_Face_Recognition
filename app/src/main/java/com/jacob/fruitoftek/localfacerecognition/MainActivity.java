@@ -20,6 +20,7 @@ import android.media.ImageReader;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Size;
 import android.util.TypedValue;
@@ -30,13 +31,9 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -60,7 +57,8 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements ImageReader.OnImageAvailableListener{
 
-    Handler handler;
+    private HandlerThread inferenceThread;
+    private Handler inferenceHandler;
     private Matrix frameToCropTransform;
     private int sensorOrientation;
     private Matrix cropToFrameTransform;
@@ -75,10 +73,10 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
     private static final int CROP_SIZE = 1000;
     private static final int TF_OD_API_INPUT_SIZE2 = 160;
 
-    //    //TODO declare face detector
+    // TODO declare face detector
     FaceDetector detector;
 
-    //    //TODO declare face recognizer
+    // TODO declare face recognizer
     private FaceClassifier faceClassifier;
 
     boolean registerFace = false;
@@ -88,7 +86,6 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_main);
-        handler = new Handler();
 
         //TODO handling permissions
         Intent intent = getIntent();
@@ -107,24 +104,9 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                 requestPermissions(permission, 121);
             }
         }
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-//            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED || checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-//                    == PackageManager.PERMISSION_DENIED){
-//                String[] permission = {Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE};
-//                requestPermissions(permission, 121);
-//            }
-//        }
-//
-//        Intent intent = getIntent();
-//        useFacing = intent.getIntExtra(KEY_USE_FACING, CameraCharacteristics.LENS_FACING_BACK);
-//
-//        //TODO show live camera footage
-//        setFragment();
-
 
         //TODO initialize the tracker to draw rectangles
         tracker = new MultiBoxTracker(this);
-
 
         //TODO initalize face detector
         // Multiple object detection in static images
@@ -161,8 +143,6 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
             }
         });
 
-
-
         findViewById(R.id.imageView3).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -178,17 +158,30 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                 startActivity(intent);
             }
         });
-
-
     }
 
-//    @Override
-//    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-//        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-//        if(requestCode == 121 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
-//            setFragment();
-//        }
-//    }
+    @Override
+    protected void onResume() {
+        super.onResume();
+        inferenceThread = new HandlerThread("InferenceThread");
+        inferenceThread.start();
+        inferenceHandler = new Handler(inferenceThread.getLooper());
+    }
+
+    @Override
+    protected void onPause() {
+        if (inferenceThread != null) {
+            inferenceThread.quitSafely();
+            try {
+                inferenceThread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            inferenceThread = null;
+            inferenceHandler = null;
+        }
+        super.onPause();
+    }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -206,7 +199,6 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         final CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         String cameraId = null;
         try {
-//            cameraId = manager.getCameraIdList()[useFacing];
             for (String id : manager.getCameraIdList()) {
                 CameraCharacteristics characteristics = manager.getCameraCharacteristics(id);
                 Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
@@ -250,7 +242,6 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                                 borderedText = new BorderedText(textSizePx);
                                 borderedText.setTypeface(Typeface.MONOSPACE);
 
-
                                 int cropSize = CROP_SIZE;
 
                                 previewWidth = size.getWidth();
@@ -290,7 +281,6 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         fragment = camera2Fragment;
         getFragmentManager().beginTransaction().replace(R.id.container, fragment).commit();
     }
-
 
     //TODO getting frames of live camera footage and passing them to model
     private boolean isProcessingFrame = false;
@@ -354,8 +344,16 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                         }
                     };
 
-            performFaceDetection();
-
+            if (inferenceHandler != null) {
+                inferenceHandler.post(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                imageConverter.run();
+                                performFaceDetection();
+                            }
+                        });
+            }
         } catch (final Exception e) {
             Log.d("tryError",e.getMessage()+"abc ");
             return;
@@ -387,52 +385,47 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         }
     }
 
-
     List<FaceClassifier.Recognition> mappedRecognitions;
 
     //TODO Perform face detection
     public void performFaceDetection(){
-        imageConverter.run();
         rgbFrameBitmap.setPixels(rgbBytes, 0, previewWidth, 0, 0, previewWidth, previewHeight);
 
         final Canvas canvas = new Canvas(croppedBitmap);
         canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
 
-        new Handler().post(new Runnable() {
-            @Override
-            public void run() {
-                mappedRecognitions = new ArrayList<>();
-                InputImage image = InputImage.fromBitmap(croppedBitmap,0);
-                detector.process(image)
-                        .addOnSuccessListener(
-                                new OnSuccessListener<List<Face>>() {
-                                    @Override
-                                    public void onSuccess(List<Face> faces) {
+        mappedRecognitions = new ArrayList<>();
+        InputImage image = InputImage.fromBitmap(croppedBitmap,0);
+        detector.process(image)
+                .addOnSuccessListener(
+                        new OnSuccessListener<List<Face>>() {
+                            @Override
+                            public void onSuccess(List<Face> faces) {
 
-                                        for(Face face:faces) {
-                                            final Rect bounds = face.getBoundingBox();
-                                            performFaceRecognition(face,croppedBitmap);
-                                        }
-                                        registerFace = false;
-                                        tracker.trackResults(mappedRecognitions, 10);
-                                        trackingOverlay.postInvalidate();
-                                        postInferenceCallback.run();
+                                for(Face face:faces) {
+                                    final Rect bounds = face.getBoundingBox();
+                                    performFaceRecognition(face,croppedBitmap);
+                                }
+                                registerFace = false;
+                                tracker.trackResults(mappedRecognitions, 10);
+                                trackingOverlay.postInvalidate();
+                                if (inferenceHandler != null) {
+                                    inferenceHandler.post(postInferenceCallback);
+                                }
 
-                                    }
-                                })
-                        .addOnFailureListener(
-                                new OnFailureListener() {
-                                    @Override
-                                    public void onFailure(@NonNull Exception e) {
-                                        // Task failed with an exception
-                                        // ...
-                                    }
-                                });
-
-
-
-            }
-        });
+                            }
+                        })
+                .addOnFailureListener(
+                        new OnFailureListener() {
+                            @Override
+                            public void onFailure(@NonNull Exception e) {
+                                // Task failed with an exception
+                                // ...
+                                if (inferenceHandler != null) {
+                                    inferenceHandler.post(postInferenceCallback);
+                                }
+                            }
+                        });
     }
 
     //TODO perform face recognition
@@ -459,7 +452,6 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                 bounds.height()-30);
         crop = Bitmap.createScaledBitmap(crop,TF_OD_API_INPUT_SIZE2,TF_OD_API_INPUT_SIZE2,false);
 
-
         final FaceClassifier.Recognition result = faceClassifier.recognizeImage(crop, registerFace);
         String title = "Unknown";
         float confidence = 0;
@@ -484,11 +476,20 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
             FaceClassifier.Recognition recognition = new FaceClassifier.Recognition(face.getTrackingId()+"",title,confidence,location);
             mappedRecognitions.add(recognition);
         }
-
     }
 
     @Override
     protected void onDestroy() {
+        if (inferenceThread != null) {
+            inferenceThread.quitSafely();
+            try {
+                inferenceThread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            inferenceThread = null;
+            inferenceHandler = null;
+        }
         super.onDestroy();
         //detector.close();
     }
