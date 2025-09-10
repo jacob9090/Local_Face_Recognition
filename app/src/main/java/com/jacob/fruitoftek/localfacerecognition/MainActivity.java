@@ -241,7 +241,6 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
             }
         }
 
-        Fragment fragment;
         CameraConnectionFragment camera2Fragment =
                 CameraConnectionFragment.newInstance(
                         new CameraConnectionFragment.ConnectionCallback() {
@@ -292,8 +291,10 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                         new Size(640, 480));
 
         camera2Fragment.setCamera(cameraId);
-        fragment = camera2Fragment;
-        getSupportFragmentManager().beginTransaction().replace(R.id.container, fragment).commit();
+        getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.container, camera2Fragment)
+                .commit();
     }
 
     //TODO getting frames of live camera footage and passing them to model
