@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Section 1: Logo -->
+    <ImageView
+        android:id="@+id/logoImageView"
+        android:layout_width="120dp"
+        android:layout_height="80dp"
+        android:src="@drawable/logokti"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="100dp"/>
+
+    <!-- Section 2: Text Views -->
+    <LinearLayout
+        android:id="@+id/textContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_below="@id/logoImageView"
+        android:layout_marginTop="10dp">
+
+        <TextView
+            android:id="@+id/textView1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:textColor="#424242"
+            android:textSize="8dp"
+            android:textStyle="bold"
+            android:text="Welcome to Attendance System"/>
+
+        <TextView
+            android:id="@+id/textView2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:textStyle="bold"
+            android:textColor="#424242"
+            android:textSize="14dp"
+            android:text="PT. KUTAI TIMBER INDONESIA"/>
+
+        <TextView
+            android:id="@+id/textView3"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:textColor="#424242"
+            android:textSize="8dp"
+            android:text="Attendance system using realtime"/>
+
+        <TextView
+            android:id="@+id/textView4"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:textColor="#424242"
+            android:textSize="8dp"
+            android:text="face recognition"/>
+    </LinearLayout>
+
+    <!-- Section 3: Another Image -->
+    <ImageView
+        android:id="@+id/FaceImageView"
+        android:layout_width="550dp"
+        android:layout_height="250dp"
+        android:src="@drawable/home"
+        android:layout_below="@id/textContainer"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="80dp" />
+
+    <!-- Section 4: Button -->
+    <Button
+        android:id="@+id/startButton"
+        android:layout_width="270dp"
+        android:layout_height="50dp"
+        android:text="START RECOGNIZE"
+        android:layout_below="@id/FaceImageView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="90dp"
+        android:textColor="@color/white"
+        android:background="@drawable/rounded_button"/>
+</RelativeLayout>
