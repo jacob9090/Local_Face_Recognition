@@ -293,7 +293,7 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
 
         camera2Fragment.setCamera(cameraId);
         fragment = camera2Fragment;
-        getFragmentManager().beginTransaction().replace(R.id.container, fragment).commit();
+        getSupportFragmentManager().beginTransaction().replace(R.id.container, fragment).commit();
     }
 
     //TODO getting frames of live camera footage and passing them to model

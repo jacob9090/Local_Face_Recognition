@@ -11,7 +11,6 @@
     <com.jacob.fruitoftek.localfacerecognition.Drawing.OverlayView
         android:id="@+id/tracking_overlay"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/purple_500" />
+        android:layout_height="match_parent" />
 
 </FrameLayout>

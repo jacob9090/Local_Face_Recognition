@@ -57,7 +57,7 @@ import java.util.concurrent.TimeUnit;
  * Camera Connection Fragment that captures images from camera.
  * Instantiated by newInstance.
  */
-@SuppressWarnings("FragmentNotInstantiable")
+
 public class CameraConnectionFragment extends Fragment {
 
     /**
@@ -80,14 +80,17 @@ public class CameraConnectionFragment extends Fragment {
 
     /** A {@link Semaphore} to prevent the app from exiting before closing the camera. */
     private final Semaphore cameraOpenCloseLock = new Semaphore(1);
-    /** A {@link OnImageAvailableListener} to receive frames as they are available. */
-    private final OnImageAvailableListener imageListener;
+    /**
+     * A {@link OnImageAvailableListener} to receive frames as they are available.
+     * These fields are no longer final so they can be initialized from arguments.
+     */
+    private OnImageAvailableListener imageListener;
     /** The input size in pixels desired by TensorFlow (width and height of a square bitmap). */
-    private final Size inputSize;
+    private Size inputSize;
     /** The layout identifier to inflate for this Fragment. */
-    private final int layout;
+    private int layout;
 
-    private final ConnectionCallback cameraConnectionCallback;
+    private ConnectionCallback cameraConnectionCallback;
     private final CameraCaptureSession.CaptureCallback captureCallback =
             new CameraCaptureSession.CaptureCallback() {
                 @Override
@@ -168,16 +171,8 @@ public class CameraConnectionFragment extends Fragment {
                 }
             };
 
-    @SuppressLint("ValidFragment")
-    private CameraConnectionFragment(
-            final ConnectionCallback connectionCallback,
-            final OnImageAvailableListener imageListener,
-            final int layout,
-            final Size inputSize) {
-        this.cameraConnectionCallback = connectionCallback;
-        this.imageListener = imageListener;
-        this.layout = layout;
-        this.inputSize = inputSize;
+    private CameraConnectionFragment() {
+
     }
 
     /**
@@ -225,12 +220,36 @@ public class CameraConnectionFragment extends Fragment {
         }
     }
 
+    private static final String ARG_LAYOUT = "layout";
+    private static final String ARG_INPUT_WIDTH = "input_width";
+    private static final String ARG_INPUT_HEIGHT = "input_height";
+
     public static CameraConnectionFragment newInstance(
             final ConnectionCallback callback,
             final OnImageAvailableListener imageListener,
             final int layout,
             final Size inputSize) {
-        return new CameraConnectionFragment(callback, imageListener, layout, inputSize);
+        CameraConnectionFragment fragment = new CameraConnectionFragment();
+        fragment.cameraConnectionCallback = callback;
+        fragment.imageListener = imageListener;
+        final Bundle args = new Bundle();
+        args.putInt(ARG_LAYOUT, layout);
+        args.putInt(ARG_INPUT_WIDTH, inputSize.getWidth());
+        args.putInt(ARG_INPUT_HEIGHT, inputSize.getHeight());
+        fragment.setArguments(args);
+        return fragment;
+    }
+
+    @Override
+    public void onCreate(final Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        final Bundle args = getArguments();
+        if (args != null) {
+            layout = args.getInt(ARG_LAYOUT);
+            final int width = args.getInt(ARG_INPUT_WIDTH);
+            final int height = args.getInt(ARG_INPUT_HEIGHT);
+            inputSize = new Size(width, height);
+        }
     }
 
     /**

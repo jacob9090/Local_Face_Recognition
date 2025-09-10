@@ -2,6 +2,7 @@ package com.jacob.fruitoftek.localfacerecognition.Drawing;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.PorterDuff;
 import android.util.AttributeSet;
 import android.view.View;
 
@@ -21,9 +22,9 @@ public class OverlayView extends View {
   }
 
   @Override
-  public synchronized void draw(final Canvas canvas) {
-      super.draw(canvas);
-      for (final DrawCallback callback : callbacks) {
+  protected synchronized void onDraw(final Canvas canvas) {
+    canvas.drawColor(0, PorterDuff.Mode.CLEAR);
+    for (final DrawCallback callback : callbacks) {
       callback.drawCallback(canvas);
     }
   }
