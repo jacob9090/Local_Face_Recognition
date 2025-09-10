@@ -192,7 +192,16 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
             if (requestCode == 121) {
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                boolean cameraPermissionGranted = false;
+                boolean storagePermissionGranted = false;
+                for (int i = 0; i < permissions.length; i++) {
+                    if (Manifest.permission.CAMERA.equals(permissions[i])) {
+                        cameraPermissionGranted = grantResults.length > i && grantResults[i] == PackageManager.PERMISSION_GRANTED;
+                    } else if (Manifest.permission.WRITE_EXTERNAL_STORAGE.equals(permissions[i])) {
+                        storagePermissionGranted = grantResults.length > i && grantResults[i] == PackageManager.PERMISSION_GRANTED;
+                    }
+                }
+                if (cameraPermissionGranted && storagePermissionGranted) {
                     setFragment();
                 }
             }
@@ -404,12 +413,16 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
 
         mappedRecognitions = new ArrayList<>();
         InputImage image = InputImage.fromBitmap(croppedBitmap,0);
+
+        final Handler handler = inferenceHandler;
         detector.process(image)
                 .addOnSuccessListener(
                         new Executor() {
                             @Override
                             public void execute(Runnable command) {
-                                inferenceHandler.post(command);
+                                if (handler != null) {
+                                    handler.post(command);
+                                }
                             }
                         },
                         new OnSuccessListener<List<Face>>() {
@@ -423,17 +436,18 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                                 registerFace = false;
                                 tracker.trackResults(mappedRecognitions, 10);
                                 trackingOverlay.postInvalidate();
-                                if (inferenceHandler != null) {
-                                    inferenceHandler.post(postInferenceCallback);
+                                if (handler != null) {
+                                    handler.post(postInferenceCallback);
                                 }
-
                             }
                         })
                 .addOnFailureListener(
                         new Executor() {
                             @Override
                             public void execute(Runnable command) {
-                                inferenceHandler.post(command);
+                                if (handler != null) {
+                                    handler.post(command);
+                                }
                             }
                         },
                         new OnFailureListener() {
@@ -441,8 +455,8 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                             public void onFailure(@NonNull Exception e) {
                                 // Task failed with an exception
                                 // ...
-                                if (inferenceHandler != null) {
-                                    inferenceHandler.post(postInferenceCallback);
+                                if (handler != null) {
+                                    handler.post(postInferenceCallback);
                                 }
                             }
                         });
@@ -465,20 +479,28 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
             bounds.bottom = input.getHeight()-1;
         }
 
+        int faceHeight = Math.max(1, bounds.height() - 30);
         Bitmap crop = Bitmap.createBitmap(input,
                 bounds.left,
                 bounds.top,
                 bounds.width(),
-                bounds.height()-30);
+                faceHeight);
         crop = Bitmap.createScaledBitmap(crop,TF_OD_API_INPUT_SIZE2,TF_OD_API_INPUT_SIZE2,false);
+        final Bitmap faceBitmap = crop;
 
-        final FaceClassifier.Recognition result = faceClassifier.recognizeImage(crop, registerFace);
+        final FaceClassifier.Recognition result = faceClassifier.recognizeImage(faceBitmap, registerFace);
         String title = "Unknown";
         float confidence = 0;
-        if (result !=null) {
-            if(registerFace){
+        if (result != null) {
+            if (registerFace) {
                 registerFaceDialogue(crop,result);
-            }else {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        registerFaceDialogue(faceBitmap,result);
+                    }
+                });
+            } else {
                 if (result.getDistance() < 0.75f) {
                     confidence = result.getDistance();
                     title = result.getTitle();
@@ -486,21 +508,31 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
             }
         }
 
-        RectF location = new RectF(bounds);
+        final RectF location = new RectF(bounds);
         if (bounds != null) {
-            if(useFacing == CameraCharacteristics.LENS_FACING_BACK) {
+            if (useFacing == CameraCharacteristics.LENS_FACING_BACK) {
                 location.right = input.getWidth() - location.right;
                 location.left = input.getWidth() - location.left;
             }
             cropToFrameTransform.mapRect(location);
-            FaceClassifier.Recognition recognition = new FaceClassifier.Recognition(face.getTrackingId()+"",title,confidence,location);
-            mappedRecognitions.add(recognition);
+            final String finalTitle = title;
+            final float finalConfidence = confidence;
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    FaceClassifier.Recognition recognition = new FaceClassifier.Recognition(face.getTrackingId()+"", finalTitle, finalConfidence, location);
+                    mappedRecognitions.add(recognition);
+                }
+            });
         }
     }
 
     @Override
     protected void onDestroy() {
         stopInferenceThread();
+        if (detector != null) {
+            detector.close();
+        }
         super.onDestroy();
     }
 
